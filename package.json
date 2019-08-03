@@ -1,0 +1,42 @@
+{
+  "name": "@churchcommunitybuilder/js-api",
+  "version": "0.0.1",
+  "description": "JS API",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/churchcommunitybuilder/js-api.git"
+  },
+  "main": "index.js",
+  "license": "MIT",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/**/*",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "test:shared": "yarn jest --config test/test.config.js",
+    "test": "yarn test:shared --watch"
+  },
+  "dependencies": {
+    "@churchcommunitybuilder/js-utils": "^0.0.9",
+    "axios": "^0.19.0",
+    "humps": "^2.0.1",
+    "ramda": "^0.26.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^24.0.16",
+    "@types/node": "^12.6.9",
+    "jest": "^24.8.0",
+    "ts-jest": "^24.0.2",
+    "typescript": "^3.5.3"
+  },
+  "bugs": {
+    "url": "https://github.com/churchcommunitybuilder/js-api/issues"
+  },
+  "homepage": "https://github.com/churchcommunitybuilder/js-api#readme",
+  "author": ""
+}
