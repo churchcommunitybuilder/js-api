@@ -21,12 +21,12 @@ export interface RequestConfig extends AxiosRequestConfig {
     data?: {};
     headers?: {};
 }
-declare let api: ApiType | undefined;
-export declare const createApi: (baseURL: string, onAuthFailure: AnyFunc<any>, onHandleRefresh: RefreshFunc, apiInterceptor?: (value: AxiosRequestConfig) => AxiosRequestConfig | Promise<AxiosRequestConfig>, timeout?: number, headers?: {}) => void;
+declare let api: ApiType;
+export declare const createApi: (baseURL: string, onAuthFailure: AnyFunc<any>, onHandleRefresh: RefreshFunc, apiInterceptor?: (value: AxiosRequestConfig) => AxiosRequestConfig | Promise<AxiosRequestConfig>, timeout?: number, headers?: {}) => ApiType;
 export declare const createOAuthHandler: (clientId: string, clientSecret: string, getTokens: AnyFunc<any>, setTokens: AnyFunc<any>) => {
     onAuthFailure: () => any;
-    onHandleRefresh: (api: import("axios").AxiosInstance) => Promise<void>;
+    onHandleRefresh: (api: import("axios").AxiosInstance) => Promise<boolean>;
     apiInterceptor: (config: AxiosRequestConfig) => Promise<any>;
 };
 export declare type Api = typeof api;
-export default api;
+export {};

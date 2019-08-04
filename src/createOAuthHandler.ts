@@ -10,10 +10,11 @@ export const createOAuthHandler = (
 ) => {
   return {
     onAuthFailure: () => setTokens({} as any),
-    onHandleRefresh: async (api: AxiosInstance) => {
+    onHandleRefresh: async (api: AxiosInstance): Promise<boolean> => {
       const { refreshToken } = await getTokens();
 
       if (!refreshToken) {
+        return false;
       }
       const { data } = await api.request({
         method: 'post',
@@ -27,6 +28,7 @@ export const createOAuthHandler = (
       });
 
       await setTokens(data);
+      return true;
     },
     apiInterceptor: async (config: AxiosRequestConfig) => {
       const { accessToken } = await getTokens();

@@ -31,7 +31,7 @@ export interface RequestConfig extends AxiosRequestConfig {
 }
 
 let apiWrapper: Api;
-let api: ApiType | undefined;
+let api: ApiType;
 let applyDefaultMethod;
 
 export const createApi = (
@@ -43,7 +43,7 @@ export const createApi = (
   ) => AxiosRequestConfig | Promise<AxiosRequestConfig>,
   timeout = defaultTimeout,
   headers = {},
-) => {
+): ApiType => {
   const apiInstance = createApiInstance(
     baseURL,
     timeout,
@@ -59,7 +59,7 @@ export const createApi = (
       ...config,
     });
 
-  api = {
+  return {
     get: applyDefaultMethod(ApiMethod.GET),
     post: applyDefaultMethod(ApiMethod.POST),
     put: applyDefaultMethod(ApiMethod.PUT),
@@ -71,5 +71,3 @@ export const createApi = (
 export const createOAuthHandler = _createOAuthHandler;
 
 export type Api = typeof api;
-
-export default api;

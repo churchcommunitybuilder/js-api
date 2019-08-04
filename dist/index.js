@@ -16,7 +16,7 @@ export const createApi = (baseURL, onAuthFailure, onHandleRefresh, apiIntercepto
     const apiInstance = createApiInstance(baseURL, timeout, apiInterceptor, headers);
     apiWrapper = new Api(apiInstance, onAuthFailure, onHandleRefresh);
     applyDefaultMethod = (method) => (config) => apiWrapper.request(Object.assign({ method }, config));
-    api = {
+    return {
         get: applyDefaultMethod(ApiMethod.GET),
         post: applyDefaultMethod(ApiMethod.POST),
         put: applyDefaultMethod(ApiMethod.PUT),
@@ -25,5 +25,4 @@ export const createApi = (baseURL, onAuthFailure, onHandleRefresh, apiIntercepto
     };
 };
 export const createOAuthHandler = _createOAuthHandler;
-export default api;
 //# sourceMappingURL=index.js.map

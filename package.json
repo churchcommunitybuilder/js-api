@@ -1,12 +1,12 @@
 {
   "name": "@churchcommunitybuilder/js-api",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "JS API",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/churchcommunitybuilder/js-api.git"
   },
-  "main": "index.js",
+  "main": "dist/index.js",
   "license": "MIT",
   "private": false,
   "publishConfig": {

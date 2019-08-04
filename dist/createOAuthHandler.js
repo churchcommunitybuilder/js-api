@@ -13,6 +13,7 @@ export const createOAuthHandler = (clientId, clientSecret, getTokens, setTokens)
         onHandleRefresh: (api) => __awaiter(this, void 0, void 0, function* () {
             const { refreshToken } = yield getTokens();
             if (!refreshToken) {
+                return false;
             }
             const { data } = yield api.request({
                 method: 'post',
@@ -25,6 +26,7 @@ export const createOAuthHandler = (clientId, clientSecret, getTokens, setTokens)
                 },
             });
             yield setTokens(data);
+            return true;
         }),
         apiInterceptor: (config) => __awaiter(this, void 0, void 0, function* () {
             const { accessToken } = yield getTokens();
