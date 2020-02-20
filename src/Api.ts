@@ -1,30 +1,62 @@
-import { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import R from 'ramda';
-import { AnyFunc } from '@churchcommunitybuilder/js-utils/types';
+import { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 
-export type RefreshFunc = (api: AxiosInstance) => boolean;
-export type ApiResponse<R> = AxiosResponse<R> & { error: boolean };
+import R from 'ramda'
 
+import { AnyFunc, AuthorizationTokens } from './types'
+
+export type ApiResponse<R> = AxiosResponse<R> & { error: boolean }
+
+export enum ApiMethod {
+  GET = 'get',
+  POST = 'post',
+  PUT = 'put',
+  DELETE = 'delete',
+}
+
+export interface RequestConfig extends AxiosRequestConfig {
+  url: string
+  method?: 'get' | 'post' | 'put' | 'delete'
+  params?: {}
+  data?: {}
+  headers?: {}
+}
 type QueuedRequest = {
-  config: AxiosRequestConfig;
-  resolve: AnyFunc;
-};
+  config: AxiosRequestConfig
+  resolve: AnyFunc
+}
 
-export default class Api {
-  private api: AxiosInstance;
-  private isRefreshing = false;
-  private queuedRequests: QueuedRequest[] = [];
-  private onAuthFailure: AnyFunc;
-  private onHandleRefresh: RefreshFunc;
+export type ApiConstructorArgs = {
+  clientCredentials: {
+    clientId: string
+    clientSecret: string
+  }
+  performRequest: AxiosInstance['request']
+  getTokens: () => AuthorizationTokens
+  setTokens: (tokens: AuthorizationTokens) => void
+  onAuthFailure: AnyFunc
+}
 
-  constructor(
-    api: AxiosInstance,
-    onAuthFailure: AnyFunc,
-    onHandleRefresh: RefreshFunc,
-  ) {
-    this.api = api;
-    this.onAuthFailure = onAuthFailure;
-    this.onHandleRefresh = onHandleRefresh;
+export class Api {
+  private clientCredentials: ApiConstructorArgs['clientCredentials']
+  private performRequest: ApiConstructorArgs['performRequest']
+  private getTokens: ApiConstructorArgs['getTokens']
+  private setTokens: ApiConstructorArgs['setTokens']
+  private onAuthFailure: ApiConstructorArgs['onAuthFailure']
+  private isRefreshing = false
+  private queuedRequests: QueuedRequest[] = []
+
+  constructor({
+    clientCredentials,
+    performRequest,
+    getTokens,
+    setTokens,
+    onAuthFailure,
+  }: ApiConstructorArgs) {
+    this.clientCredentials = clientCredentials
+    this.performRequest = performRequest
+    this.getTokens = getTokens
+    this.setTokens = setTokens
+    this.onAuthFailure = onAuthFailure
   }
 
   private formatResponse<R>(
@@ -34,76 +66,98 @@ export default class Api {
     return {
       ...response,
       error,
-    };
+    }
   }
 
   private async queueRequest<R>(
     config: AxiosRequestConfig,
   ): Promise<ApiResponse<R>> {
     return new Promise(resolve => {
-      this.queuedRequests = R.append({ config, resolve }, this.queuedRequests);
-    });
+      this.queuedRequests = R.append({ config, resolve }, this.queuedRequests)
+    })
   }
 
   private performQueuedRequests() {
     const requests = this.queuedRequests.map(async request => {
       try {
-        const response = await this.api.request(request.config);
-        request.resolve(this.formatResponse(response, false));
+        const response = await this.performRequest(request.config)
+        request.resolve(this.formatResponse(response, false))
       } catch (e) {
-        request.resolve(this.formatResponse(e, true));
+        request.resolve(this.formatResponse(e, true))
       }
-    });
+    })
 
-    Promise.all(requests);
+    Promise.all(requests)
   }
 
   private cancelQueuedRequests() {
-    this.queuedRequests.forEach(request => request.resolve({ error: true }));
+    this.queuedRequests.forEach(request => request.resolve({ error: true }))
 
-    this.queuedRequests = [];
+    this.queuedRequests = []
   }
 
   private async refreshTokens() {
-    this.isRefreshing = true;
+    this.isRefreshing = true
+    const { refreshToken } = this.getTokens()
 
-    try {
-      if (await this.onHandleRefresh(this.api)) {
-        this.performQueuedRequests();
-      } else {
-        this.cancelQueuedRequests();
+    if (refreshToken) {
+      try {
+        const { data } = await this.performRequest({
+          method: 'post',
+          url: 'oauth/token',
+          data: {
+            refreshToken,
+            grantType: 'refresh_token',
+            ...this.clientCredentials,
+          },
+        })
+
+        this.setTokens(data)
+        this.performQueuedRequests()
+      } catch (e) {
+        this.onAuthFailure()
+        this.cancelQueuedRequests()
       }
-    } catch (e) {
-      this.onAuthFailure();
-      this.cancelQueuedRequests();
+    } else {
+      this.cancelQueuedRequests()
     }
 
-    this.isRefreshing = false;
+    this.isRefreshing = false
   }
 
-  async request<R = any>(config: AxiosRequestConfig): Promise<ApiResponse<R>> {
+  async request<R = any>(config: RequestConfig): Promise<ApiResponse<R>> {
     if (this.isRefreshing) {
-      return this.queueRequest<R>(config);
+      return this.queueRequest<R>(config)
     }
 
     try {
-      const response = await this.api.request<R>(config);
-      return this.formatResponse<R>(response, false);
+      const response = await this.performRequest<R>(config)
+      return this.formatResponse<R>(response, false)
     } catch (e) {
-      if (
-        R.pathEq(['response', 'status'], 401, e) &&
-        !config.url!.includes('oauth/token')
-      ) {
-        const queuedRequest = this.queueRequest<R>(config);
+      if (e?.response?.status === 401 && !config.url!.includes('oauth/token')) {
+        const queuedRequest = this.queueRequest<R>(config)
 
         if (!this.isRefreshing) {
-          await this.refreshTokens();
+          await this.refreshTokens()
         }
 
-        return queuedRequest;
+        return queuedRequest
       }
 
-      return this.formatResponse(e, true);
+      return this.formatResponse(e, true)
     }
   }
+
+  private applyDefaultMethod = (method: ApiMethod) => <R = any>(
+    config: RequestConfig,
+  ) =>
+    this.request<R>({
+      method,
+      ...config,
+    })
+
+  get = this.applyDefaultMethod(ApiMethod.GET)
+  post = this.applyDefaultMethod(ApiMethod.POST)
+  put = this.applyDefaultMethod(ApiMethod.PUT)
+  delete = this.applyDefaultMethod(ApiMethod.DELETE)
 }

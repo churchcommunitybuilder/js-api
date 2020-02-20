@@ -1,8 +1,11 @@
-# js-utils
-JS Utils
+# ts-template
+Typescript template repository
 
-To publish
-- Increment version in package.json
-- `yarn build`
-- `cd dist`
-- `npm publish`
+This repo comes with
+* typescript
+* prettier
+* eslint
+* jest
+* precommit hooks
+
+If you wish to publish as a package to npm, change the `name` field of the `package.json` to your package, and `yarn publish`

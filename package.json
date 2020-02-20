@@ -1,42 +1,62 @@
 {
+  "version": "0.0.1",
   "name": "@churchcommunitybuilder/js-api",
-  "version": "0.0.3",
-  "description": "JS API",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/churchcommunitybuilder/js-api.git"
-  },
-  "main": "dist/index.js",
-  "license": "MIT",
-  "private": false,
+  "main": "lib/index.js",
+  "files": [
+    "/lib/**/*"
+  ],
   "publishConfig": {
     "access": "public"
   },
-  "files": [
-    "dist/**/*",
-    "LICENSE"
-  ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.json",
-    "test:shared": "yarn jest --config test/test.config.js",
-    "test": "yarn test:shared --watch"
+    "prettier": "prettier --loglevel error --write '**/*.{ts,tsx}'",
+    "build": "tsc -p tsconfig.json #",
+    "build:publish": "rm -rf lib && yarn build",
+    "build:precommit": "yarn && yarn build --noEmit",
+    "test": "jest --watch --verbose=false",
+    "test:ci": "jest --ci --coverage --coverageDirectory='./coverage/' --coverageReporters=lcovonly --reporters=jest-junit --max-workers=2",
+    "test:precommit": "jest --findRelatedTests",
+    "test:coverage": "jest --coverage && open coverage/lcov-report/index.html",
+    "lint": "eslint --fix src/**/*.ts",
+    "prepublishOnly": "yarn build"
   },
-  "dependencies": {
-    "@churchcommunitybuilder/js-utils": "^0.0.9",
-    "axios": "^0.19.0",
-    "humps": "^2.0.1",
-    "ramda": "^0.26.1"
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*": [
+      "yarn build:precommit"
+    ],
+    "**/*.{ts,tsx}": [
+      "yarn prettier",
+      "yarn lint",
+      "git add"
+    ],
+    "src/**/*.{ts,tsx}": [
+      "yarn test:precommit"
+    ]
   },
   "devDependencies": {
-    "@types/jest": "^24.0.16",
-    "@types/node": "^12.6.9",
-    "jest": "^24.8.0",
+    "@types/humps": "^1.1.3",
+    "@types/jest": "^24.0.18",
+    "@types/ramda": "^0.26.41",
+    "@typescript-eslint/eslint-plugin": "^2.1.0",
+    "@typescript-eslint/parser": "^2.1.0",
+    "eslint": "^6.3.0",
+    "eslint-config-prettier": "^6.2.0",
+    "eslint-plugin-prettier": "^3.1.0",
+    "husky": "^3.0.5",
+    "jest": "^24.9.0",
+    "lint-staged": "^9.2.5",
+    "prettier": "^1.18.2",
     "ts-jest": "^24.0.2",
-    "typescript": "^3.5.3"
+    "typescript": "^3.6.2"
   },
-  "bugs": {
-    "url": "https://github.com/churchcommunitybuilder/js-api/issues"
-  },
-  "homepage": "https://github.com/churchcommunitybuilder/js-api#readme",
-  "author": ""
+  "dependencies": {
+    "axios": "^0.19.2",
+    "humps": "^2.0.1",
+    "ramda": "^0.27.0"
+  }
 }
