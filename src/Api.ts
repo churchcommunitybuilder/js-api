@@ -30,14 +30,16 @@ export type ApiConstructorArgs = {
     clientId: string
     clientSecret: string
   }
+  debugCookie?: string
   performRequest: AxiosInstance['request']
-  getTokens: () => AuthorizationTokens
-  setTokens: (tokens: AuthorizationTokens) => void
+  getTokens: () => Promise<AuthorizationTokens> | AuthorizationTokens
+  setTokens: (tokens: AuthorizationTokens) => Promise<void> | void
   onAuthFailure: AnyFunc
 }
 
 export class Api {
   private clientCredentials: ApiConstructorArgs['clientCredentials']
+  private debugCookie: ApiConstructorArgs['debugCookie']
   private performRequest: ApiConstructorArgs['performRequest']
   private getTokens: ApiConstructorArgs['getTokens']
   private setTokens: ApiConstructorArgs['setTokens']
@@ -47,12 +49,14 @@ export class Api {
 
   constructor({
     clientCredentials,
+    debugCookie,
     performRequest,
     getTokens,
     setTokens,
     onAuthFailure,
   }: ApiConstructorArgs) {
     this.clientCredentials = clientCredentials
+    this.debugCookie = debugCookie
     this.performRequest = performRequest
     this.getTokens = getTokens
     this.setTokens = setTokens
@@ -77,10 +81,29 @@ export class Api {
     })
   }
 
+  private async executeRequest<R>(config: AxiosRequestConfig) {
+    const tokens = await this.getTokens()
+
+    if (tokens?.accessToken) {
+      config = R.assocPath(
+        ['headers', 'Authorization'],
+        `Bearer ${tokens.accessToken}`,
+        config,
+      )
+    }
+
+    if (this.debugCookie) {
+      config = R.assocPath(['headers', 'Cookie'], this.debugCookie, config)
+      config.withCredentials = true
+    }
+
+    return this.performRequest<R>(config)
+  }
+
   private performQueuedRequests() {
     const requests = this.queuedRequests.map(async request => {
       try {
-        const response = await this.performRequest(request.config)
+        const response = await this.executeRequest(request.config)
         request.resolve(this.formatResponse(response, false))
       } catch (e) {
         request.resolve(this.formatResponse(e, true))
@@ -98,11 +121,11 @@ export class Api {
 
   private async refreshTokens() {
     this.isRefreshing = true
-    const { refreshToken } = this.getTokens()
+    const { refreshToken } = await this.getTokens()
 
     if (refreshToken) {
       try {
-        const { data } = await this.performRequest({
+        const { data } = await this.executeRequest({
           method: 'post',
           url: 'oauth/token',
           data: {
@@ -112,7 +135,7 @@ export class Api {
           },
         })
 
-        this.setTokens(data)
+        await this.setTokens(data)
         this.performQueuedRequests()
       } catch (e) {
         this.onAuthFailure()
@@ -131,7 +154,7 @@ export class Api {
     }
 
     try {
-      const response = await this.performRequest<R>(config)
+      const response = await this.executeRequest<R>(config)
       return this.formatResponse<R>(response, false)
     } catch (e) {
       if (e?.response?.status === 401 && !config.url!.includes('oauth/token')) {

@@ -115,6 +115,7 @@ describe(Api.name, () => {
               grantType: 'refresh_token',
               ...clientCredentials,
             },
+            headers: { Authorization: `Bearer ${originalTokens.accessToken}` },
           })
 
           expect(response).toEqual({
