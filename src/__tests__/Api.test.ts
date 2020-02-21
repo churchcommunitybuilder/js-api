@@ -1,11 +1,8 @@
 import { delay } from '../delay'
 
-import { Api, RequestConfig } from '../Api'
+import { Api } from '../Api'
 
-const request: RequestConfig = {
-  url: 'testUrl',
-  method: 'get',
-}
+const url = 'testUrl'
 
 const originalTokens = {
   accessToken: 'accessToken',
@@ -55,7 +52,7 @@ describe(Api.name, () => {
 
         requestMock.mockResolvedValueOnce(defaultData)
 
-        const response = await api.request(request)
+        const response = await api.get(url)
 
         expect(requestMock).toHaveBeenCalledTimes(1)
         expect(response).toEqual({
@@ -79,7 +76,7 @@ describe(Api.name, () => {
 
           requestMock.mockRejectedValue(data)
 
-          const response = await api.request(request)
+          const response = await api.get(url)
 
           expect(requestMock).toHaveBeenCalledTimes(1)
           expect(response).toEqual({
@@ -102,7 +99,7 @@ describe(Api.name, () => {
             .mockResolvedValueOnce({ data: newTokens })
             .mockResolvedValueOnce(defaultData)
 
-          const response = await api.request(request)
+          const response = await api.get(url)
 
           expect(requestMock).toHaveBeenCalledTimes(3)
 
@@ -155,12 +152,12 @@ describe(Api.name, () => {
       }
 
       // execute request to force a refresh (without awaiting it)
-      api.request(request)
+      api.get(url)
 
       await delay(1)
 
       // execute request that should be queued until done refreshing
-      const response = await api.request(request)
+      const response = await api.get(url)
 
       expect(response).toEqual({
         ...defaultData,
@@ -187,7 +184,7 @@ describe(Api.name, () => {
           },
         })
 
-      await Promise.all([api.request(request), api.request(request)])
+      await Promise.all([api.get(url), api.get(url)])
 
       const refreshes = requestMock.mock.calls.filter(
         ([{ url }]) => url === 'oauth/token',
@@ -210,7 +207,7 @@ describe(Api.name, () => {
         /* refresh request fails */
         .mockRejectedValueOnce({})
 
-      await api.request(request)
+      await api.get(url)
 
       expect(onAuthFailureMock).toHaveBeenCalledTimes(1)
     })
@@ -228,7 +225,7 @@ describe(Api.name, () => {
           },
         })
 
-      const response = await api.request(request)
+      const response = await api.get(url)
 
       expect(response.error).toBe(true)
     })

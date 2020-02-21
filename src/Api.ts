@@ -157,7 +157,7 @@ export class Api {
       const response = await this.executeRequest<R>(config)
       return this.formatResponse<R>(response, false)
     } catch (e) {
-      if (e?.response?.status === 401 && !config.url!.includes('oauth/token')) {
+      if (e?.response?.status === 401 && !config.url?.includes('oauth/token')) {
         const queuedRequest = this.queueRequest<R>(config)
 
         if (!this.isRefreshing) {
@@ -172,10 +172,12 @@ export class Api {
   }
 
   private applyDefaultMethod = (method: ApiMethod) => <R = any>(
-    config: RequestConfig,
+    url: string,
+    config?: Omit<RequestConfig, 'url'>,
   ) =>
     this.request<R>({
       method,
+      url,
       ...config,
     })
 
