@@ -84,7 +84,7 @@ export class Api {
   private async executeRequest<R>(config: AxiosRequestConfig) {
     const tokens = await this.getTokens()
 
-    if (tokens?.accessToken) {
+    if (tokens?.accessToken && !config?.headers?.Authorization) {
       config = R.assocPath(
         ['headers', 'Authorization'],
         `Bearer ${tokens.accessToken}`,
@@ -92,7 +92,7 @@ export class Api {
       )
     }
 
-    if (this.debugCookie) {
+    if (this.debugCookie && !config?.headers?.Cookie) {
       config = R.assocPath(['headers', 'Cookie'], this.debugCookie, config)
       config.withCredentials = true
     }
