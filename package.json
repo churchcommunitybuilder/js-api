@@ -1,12 +1,13 @@
 {
-  "version": "0.0.7",
+  "version": "0.0.8",
   "name": "@churchcommunitybuilder/js-api",
-  "main": "lib/index.js",
+  "repository": "github:churchcommunitybuilder/js-api",
   "files": [
     "/lib/**/*"
   ],
+  "main": "lib/index.js",
   "publishConfig": {
-    "access": "public"
+    "registry": "https://npm.pkg.github.com/"
   },
   "scripts": {
     "prettier": "prettier --loglevel error --write '**/*.{ts,tsx}'",
