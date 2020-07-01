@@ -15,12 +15,12 @@ export enum ApiMethod {
 export interface RequestConfig extends AxiosRequestConfig {
   url: string
   method?: 'get' | 'post' | 'put' | 'delete'
-  params?: {}
-  data?: {}
-  headers?: {}
+  params?: Record<string, any>
+  data?: Record<string, any>
+  headers?: Record<string, any>
 }
 type QueuedRequest = {
-  config: AxiosRequestConfig
+  config: RequestConfig
   resolve: AnyFunc
 }
 
@@ -31,7 +31,7 @@ interface WrappedRequest {
   >
 }
 
-type DefaultRequestConfig = Partial<AxiosRequestConfig>
+type DefaultRequestConfig = Partial<RequestConfig>
 
 export type ApiConstructorArgs = {
   clientCredentials: {
@@ -40,10 +40,14 @@ export type ApiConstructorArgs = {
   }
   debugCookie?: string
   performRequest: AxiosInstance['request']
-  getTokens: () => Promise<AuthorizationTokens> | AuthorizationTokens
+  getTokens: (
+    config: RequestConfig,
+  ) => Promise<AuthorizationTokens> | AuthorizationTokens
   setTokens: (tokens: AuthorizationTokens) => Promise<void> | void
   onAuthFailure: AnyFunc
-  getDefaultConfig?: () => DefaultRequestConfig | Promise<DefaultRequestConfig>
+  getDefaultConfig?: (
+    config: RequestConfig,
+  ) => DefaultRequestConfig | Promise<DefaultRequestConfig>
 }
 
 export class Api {
@@ -86,15 +90,15 @@ export class Api {
   }
 
   private async queueRequest<R>(
-    config: AxiosRequestConfig,
+    config: RequestConfig,
   ): Promise<ApiResponse<R>> {
     return new Promise(resolve => {
       this.queuedRequests = R.append({ config, resolve }, this.queuedRequests)
     })
   }
 
-  private async executeRequest<R>(config: AxiosRequestConfig) {
-    const tokens = await this.getTokens()
+  private async executeRequest<R>(config: RequestConfig) {
+    const tokens = await this.getTokens(config)
 
     if (tokens?.accessToken && !config?.headers?.Authorization) {
       config = R.assocPath(
@@ -109,7 +113,7 @@ export class Api {
       config.withCredentials = true
     }
 
-    const defaultConfig = (await this.getDefaultConfig?.()) ?? {}
+    const defaultConfig = (await this.getDefaultConfig?.(config)) ?? {}
 
     return this.performRequest<R>({
       ...defaultConfig,
@@ -138,13 +142,13 @@ export class Api {
 
   private async refreshTokens() {
     this.isRefreshing = true
-    const { refreshToken } = await this.getTokens()
+    const baseConfig = { method: 'post' as const, url: 'oauth/token' }
+    const { refreshToken } = await this.getTokens(baseConfig)
 
     if (refreshToken) {
       try {
         const { data } = await this.executeRequest<any>({
-          method: 'post',
-          url: 'oauth/token',
+          ...baseConfig,
           data: {
             refreshToken,
             grantType: 'refresh_token',
