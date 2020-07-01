@@ -25,6 +25,8 @@ type QueuedRequest = {
   resolve: AnyFunc
 }
 
+type DefaultRequestConfig = Partial<AxiosRequestConfig>
+
 export type ApiConstructorArgs = {
   clientCredentials: {
     clientId: string
@@ -35,6 +37,7 @@ export type ApiConstructorArgs = {
   getTokens: () => Promise<AuthorizationTokens> | AuthorizationTokens
   setTokens: (tokens: AuthorizationTokens) => Promise<void> | void
   onAuthFailure: AnyFunc
+  defaultConfig?: DefaultRequestConfig
 }
 
 export class Api {
@@ -44,6 +47,7 @@ export class Api {
   private getTokens: ApiConstructorArgs['getTokens']
   private setTokens: ApiConstructorArgs['setTokens']
   private onAuthFailure: ApiConstructorArgs['onAuthFailure']
+  private defaultConfig?: ApiConstructorArgs['defaultConfig']
   private isRefreshing = false
   private queuedRequests: QueuedRequest[] = []
 
@@ -54,6 +58,7 @@ export class Api {
     getTokens,
     setTokens,
     onAuthFailure,
+    defaultConfig = {},
   }: ApiConstructorArgs) {
     this.clientCredentials = clientCredentials
     this.debugCookie = debugCookie
@@ -61,6 +66,7 @@ export class Api {
     this.getTokens = getTokens
     this.setTokens = setTokens
     this.onAuthFailure = onAuthFailure
+    this.defaultConfig = defaultConfig
   }
 
   private formatResponse<R>(
@@ -97,7 +103,7 @@ export class Api {
       config.withCredentials = true
     }
 
-    return this.performRequest<R>(config)
+    return this.performRequest<R>({ ...(this.defaultConfig ?? {}), ...config })
   }
 
   private performQueuedRequests() {
@@ -125,7 +131,7 @@ export class Api {
 
     if (refreshToken) {
       try {
-        const { data } = await this.executeRequest({
+        const { data } = await this.executeRequest<any>({
           method: 'post',
           url: 'oauth/token',
           data: {
@@ -146,6 +152,24 @@ export class Api {
     }
 
     this.isRefreshing = false
+  }
+
+  setDefaultConfig(config: DefaultRequestConfig) {
+    this.defaultConfig = config
+  }
+
+  mergeDefaultConfig(config: DefaultRequestConfig) {
+    this.defaultConfig = R.mergeDeepRight(
+      this.defaultConfig ?? {},
+      config,
+    ) as DefaultRequestConfig
+  }
+
+  setDefaultConfigValue<K extends keyof DefaultRequestConfig>(
+    key: K,
+    value: DefaultRequestConfig[K],
+  ) {
+    this.defaultConfig = R.assoc(key, value, this.defaultConfig)
   }
 
   async request<R = any>(config: RequestConfig): Promise<ApiResponse<R>> {

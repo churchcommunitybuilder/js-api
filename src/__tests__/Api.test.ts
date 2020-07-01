@@ -230,4 +230,25 @@ describe(Api.name, () => {
       expect(response.error).toBe(true)
     })
   })
+
+  test('should apply the default config to each request', async () => {
+    const { api, requestMock } = instantiate()
+
+    api.setDefaultConfig({ baseURL: 'http://new-default.com' })
+    api.setDefaultConfigValue('maxContentLength', 100)
+    api.mergeDefaultConfig({ timeout: 1000 })
+
+    await api.post('test')
+
+    expect(requestMock).toHaveBeenCalledWith({
+      baseURL: 'http://new-default.com',
+      headers: {
+        Authorization: 'Bearer accessToken',
+      },
+      maxContentLength: 100,
+      method: 'post',
+      timeout: 1000,
+      url: 'test',
+    })
+  })
 })
