@@ -42,7 +42,9 @@ export type ApiConstructorArgs = {
   performRequest: AxiosInstance['request']
   getTokens: (
     config: RequestConfig,
-  ) => Promise<AuthorizationTokens> | AuthorizationTokens
+  ) =>
+    | Promise<AuthorizationTokens | null | undefined>
+    | (AuthorizationTokens | null | undefined)
   setTokens: (tokens: AuthorizationTokens) => Promise<void> | void
   onAuthFailure: AnyFunc
   getDefaultConfig?: (
@@ -143,14 +145,14 @@ export class Api {
   private async refreshTokens() {
     this.isRefreshing = true
     const baseConfig = { method: 'post' as const, url: 'oauth/token' }
-    const { refreshToken } = await this.getTokens(baseConfig)
+    const tokens = await this.getTokens(baseConfig)
 
-    if (refreshToken) {
+    if (tokens?.refreshToken) {
       try {
         const { data } = await this.executeRequest<any>({
           ...baseConfig,
           data: {
-            refreshToken,
+            refreshToken: tokens?.refreshToken,
             grantType: 'refresh_token',
             ...this.clientCredentials,
           },
