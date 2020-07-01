@@ -25,8 +25,10 @@ type QueuedRequest = {
 }
 
 interface WrappedRequest {
-  <R = any>(config: RequestConfig): R
-  <R = any>(url: string, config?: Omit<RequestConfig, 'url'>): R
+  <R = any>(config: RequestConfig): Promise<ApiResponse<R>>
+  <R = any>(url: string, config?: Omit<RequestConfig, 'url'>): Promise<
+    ApiResponse<R>
+  >
 }
 
 type DefaultRequestConfig = Partial<AxiosRequestConfig>
