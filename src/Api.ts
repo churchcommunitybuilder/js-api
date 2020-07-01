@@ -1,5 +1,4 @@
 import { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
-
 import R from 'ramda'
 
 import { AnyFunc, AuthorizationTokens } from './types'
@@ -23,6 +22,11 @@ export interface RequestConfig extends AxiosRequestConfig {
 type QueuedRequest = {
   config: AxiosRequestConfig
   resolve: AnyFunc
+}
+
+interface WrappedRequest {
+  <R = any>(config: RequestConfig): R
+  <R = any>(url: string, config?: Omit<RequestConfig, 'url'>): R
 }
 
 type DefaultRequestConfig = Partial<AxiosRequestConfig>
@@ -195,15 +199,24 @@ export class Api {
     }
   }
 
-  private applyDefaultMethod = (method: ApiMethod) => <R = any>(
-    url: string,
-    config?: Omit<RequestConfig, 'url'>,
-  ) =>
-    this.request<R>({
-      method,
-      url,
-      ...config,
-    })
+  private applyDefaultMethod(method: ApiMethod) {
+    const wrappedRequest: WrappedRequest = <R = any>(
+      urlOrConfig: string | RequestConfig,
+      config: Omit<RequestConfig, 'url'> = {},
+    ) => {
+      const mergedConfig =
+        typeof urlOrConfig === 'string'
+          ? { url: urlOrConfig, ...config }
+          : urlOrConfig
+
+      return this.request<R>({
+        method,
+        ...mergedConfig,
+      })
+    }
+
+    return wrappedRequest
+  }
 
   get = this.applyDefaultMethod(ApiMethod.GET)
   post = this.applyDefaultMethod(ApiMethod.POST)

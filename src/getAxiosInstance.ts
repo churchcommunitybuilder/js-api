@@ -2,10 +2,7 @@
 
 import axios from 'axios'
 import buildURL from 'axios/lib/helpers/buildURL'
-
 import { camelizeKeys, decamelizeKeys } from 'humps'
-
-import { AnyFunc } from './types'
 
 const defaultTimeout = 20000
 const paramsSerializer = (obj: {}) =>
@@ -16,7 +13,7 @@ type Options = {
   timeout?: number
 }
 
-export const getApiInstance = ({
+export const getAxiosInstance = ({
   baseURL,
   timeout = defaultTimeout,
 }: Options) =>

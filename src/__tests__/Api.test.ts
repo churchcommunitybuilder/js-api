@@ -14,6 +14,12 @@ const newTokens = {
   refreshToken: 'newRefreshToken',
 }
 
+const defaultHeaders = {
+  headers: {
+    Authorization: 'Bearer accessToken',
+  },
+}
+
 const defaultData = { data: 'data' }
 const clientCredentials = { clientId: 'clientId', clientSecret: 'clientSecret' }
 
@@ -242,13 +248,44 @@ describe(Api.name, () => {
 
     expect(requestMock).toHaveBeenCalledWith({
       baseURL: 'http://new-default.com',
-      headers: {
-        Authorization: 'Bearer accessToken',
-      },
+      ...defaultHeaders,
       maxContentLength: 100,
       method: 'post',
       timeout: 1000,
       url: 'test',
+    })
+  })
+
+  test('should be able to use both overloads of wrapped request methods', async () => {
+    const { api, requestMock } = instantiate()
+
+    await api.get({ url: 'get-url' })
+    await api.post({ url: 'post-url' })
+    await api.put({ url: 'put-url' })
+    await api.delete({ url: 'delete-url' })
+
+    expect(requestMock).toHaveBeenCalledWith({
+      ...defaultHeaders,
+      method: 'get',
+      url: 'get-url',
+    })
+
+    expect(requestMock).toHaveBeenCalledWith({
+      ...defaultHeaders,
+      method: 'post',
+      url: 'post-url',
+    })
+
+    expect(requestMock).toHaveBeenCalledWith({
+      ...defaultHeaders,
+      method: 'put',
+      url: 'put-url',
+    })
+
+    expect(requestMock).toHaveBeenCalledWith({
+      ...defaultHeaders,
+      method: 'delete',
+      url: 'delete-url',
     })
   })
 })
