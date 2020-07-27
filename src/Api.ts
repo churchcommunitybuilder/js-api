@@ -33,11 +33,7 @@ interface WrappedRequest {
 
 type DefaultRequestConfig = Partial<RequestConfig>
 
-export type ApiConstructorArgs = {
-  clientCredentials: {
-    clientId: string
-    clientSecret: string
-  }
+type BaseApiOptions = {
   debugCookie?: string
   performRequest: AxiosInstance['request']
   getTokens: (
@@ -46,39 +42,43 @@ export type ApiConstructorArgs = {
     | Promise<AuthorizationTokens | null | undefined>
     | (AuthorizationTokens | null | undefined)
   setTokens: (tokens: AuthorizationTokens) => Promise<void> | void
-  onAuthFailure: AnyFunc
+  onAuthFailure: (e: Error) => void
   getDefaultConfig?: (
     config: RequestConfig,
   ) => DefaultRequestConfig | Promise<DefaultRequestConfig>
 }
 
-export class Api {
-  private clientCredentials: ApiConstructorArgs['clientCredentials']
-  private debugCookie: ApiConstructorArgs['debugCookie']
-  private performRequest: ApiConstructorArgs['performRequest']
-  private getTokens: ApiConstructorArgs['getTokens']
-  private setTokens: ApiConstructorArgs['setTokens']
-  private onAuthFailure: ApiConstructorArgs['onAuthFailure']
-  private getDefaultConfig: ApiConstructorArgs['getDefaultConfig']
+interface BasicOAuthOptions extends BaseApiOptions {
+  authStrategy?: 'basicOAuth'
+  clientCredentials: {
+    clientId: string
+    clientSecret: string
+  }
+}
+
+interface PushpayJwtOptions extends BaseApiOptions {
+  authStrategy: 'pushpayJwt'
+  getJwtAuthContext: () => {
+    authToken: string
+    organizationKey: string
+  }
+}
+
+export type ApiOptions = BasicOAuthOptions | PushpayJwtOptions
+
+const isBasicOAuth = (options: ApiOptions): options is BasicOAuthOptions =>
+  !options.authStrategy || options.authStrategy === 'basicOAuth'
+
+const isPushpayJwt = (options: ApiOptions): options is PushpayJwtOptions =>
+  options.authStrategy === 'pushpayJwt'
+
+export class Api<Options extends ApiOptions> {
+  private options: Options
   private isRefreshing = false
   private queuedRequests: QueuedRequest[] = []
 
-  constructor({
-    clientCredentials,
-    debugCookie,
-    performRequest,
-    getTokens,
-    setTokens,
-    onAuthFailure,
-    getDefaultConfig,
-  }: ApiConstructorArgs) {
-    this.clientCredentials = clientCredentials
-    this.debugCookie = debugCookie
-    this.performRequest = performRequest
-    this.getTokens = getTokens
-    this.setTokens = setTokens
-    this.onAuthFailure = onAuthFailure
-    this.getDefaultConfig = getDefaultConfig
+  constructor(options: Options) {
+    this.options = options
   }
 
   private formatResponse<R>(
@@ -100,7 +100,7 @@ export class Api {
   }
 
   private async executeRequest<R>(config: RequestConfig) {
-    const tokens = await this.getTokens(config)
+    const tokens = await this.options.getTokens(config)
 
     if (tokens?.accessToken && !config?.headers?.Authorization) {
       config = R.assocPath(
@@ -110,14 +110,18 @@ export class Api {
       )
     }
 
-    if (this.debugCookie && !config?.headers?.Cookie) {
-      config = R.assocPath(['headers', 'Cookie'], this.debugCookie, config)
+    if (this.options.debugCookie && !config?.headers?.Cookie) {
+      config = R.assocPath(
+        ['headers', 'Cookie'],
+        this.options.debugCookie,
+        config,
+      )
       config.withCredentials = true
     }
 
-    const defaultConfig = (await this.getDefaultConfig?.(config)) ?? {}
+    const defaultConfig = (await this.options.getDefaultConfig?.(config)) ?? {}
 
-    return this.performRequest<R>({
+    return this.options.performRequest<R>({
       ...defaultConfig,
       ...config,
     })
@@ -144,31 +148,90 @@ export class Api {
 
   private async refreshTokens() {
     this.isRefreshing = true
-    const baseConfig = { method: 'post' as const, url: 'oauth/token' }
-    const tokens = await this.getTokens(baseConfig)
 
-    if (tokens?.refreshToken) {
-      try {
-        const { data } = await this.executeRequest<any>({
-          ...baseConfig,
-          data: {
-            refreshToken: tokens?.refreshToken,
-            grantType: 'refresh_token',
-            ...this.clientCredentials,
-          },
-        })
+    if (isBasicOAuth(this.options)) {
+      const baseConfig = { method: 'post' as const, url: 'oauth/token' }
+      const tokens = await this.options.getTokens(baseConfig)
 
-        await this.setTokens(data)
-        this.performQueuedRequests()
-      } catch (e) {
-        this.onAuthFailure()
+      if (tokens?.refreshToken) {
+        try {
+          const { data } = await this.executeRequest<any>({
+            ...baseConfig,
+            data: {
+              refreshToken: tokens?.refreshToken,
+              grantType: 'refresh_token',
+              ...this.options.clientCredentials,
+            },
+          })
+
+          await this.options.setTokens(data)
+          this.performQueuedRequests()
+        } catch (e) {
+          this.options.onAuthFailure(e)
+          this.cancelQueuedRequests()
+        }
+      } else {
         this.cancelQueuedRequests()
       }
-    } else {
-      this.cancelQueuedRequests()
+    } else if (isPushpayJwt(this.options)) {
+      /**
+       * for refreshes using pushpay jwt, we just reauthenticate to the same endpoint
+       * and assume that the client will provide us updated auth context
+       */
+      if (await this.authenticate<any>()) {
+        this.performQueuedRequests()
+      } else {
+        this.cancelQueuedRequests()
+      }
     }
 
     this.isRefreshing = false
+  }
+
+  async authenticate<O extends Options>(
+    ...args: O extends BasicOAuthOptions
+      ? [{ username: string; password: string; subdomain: string }]
+      : []
+  ) {
+    let config: RequestConfig
+
+    if (isBasicOAuth(this.options)) {
+      config = {
+        method: 'post',
+        url: 'oauth/token',
+        data: {
+          grantType: 'password',
+          ...args[0],
+          ...this.options.clientCredentials,
+        },
+      }
+    } else if (isPushpayJwt(this.options)) {
+      const context = await this.options.getJwtAuthContext()
+
+      config = {
+        method: 'post',
+        url: 'internal/identity',
+        headers: {
+          Authorization: `Bearer ${context.authToken}`,
+        },
+        data: {
+          organizationKey: context.organizationKey,
+        },
+      }
+    } else {
+      throw Error('invalid authentication strategy')
+    }
+
+    try {
+      const { data } = await this.executeRequest<AuthorizationTokens>(config)
+      this.options.setTokens(data)
+
+      return true
+    } catch (e) {
+      this.options.onAuthFailure(e)
+
+      return false
+    }
   }
 
   async request<R = any>(config: RequestConfig): Promise<ApiResponse<R>> {
