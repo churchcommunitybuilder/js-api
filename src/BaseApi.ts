@@ -1,27 +1,16 @@
-import { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
+import { AxiosInstance, AxiosResponse } from 'axios'
 import R from 'ramda'
 
-import { AnyFunc, AuthorizationTokens } from './types'
+import {
+  AuthorizationTokens,
+  RequestConfig,
+  ApiMethod,
+  ApiResponse,
+} from './types'
 
-export type ApiResponse<R> = AxiosResponse<R> & { error: boolean }
-
-export enum ApiMethod {
-  GET = 'get',
-  POST = 'post',
-  PUT = 'put',
-  DELETE = 'delete',
-}
-
-export interface RequestConfig extends AxiosRequestConfig {
-  url: string
-  method?: 'get' | 'post' | 'put' | 'delete'
-  params?: Record<string, any>
-  data?: Record<string, any>
-  headers?: Record<string, any>
-}
 type QueuedRequest = {
   config: RequestConfig
-  resolve: AnyFunc
+  resolve: (response: any) => void
 }
 
 interface WrappedRequest {
@@ -33,11 +22,7 @@ interface WrappedRequest {
 
 type DefaultRequestConfig = Partial<RequestConfig>
 
-export type ApiConstructorArgs = {
-  clientCredentials: {
-    clientId: string
-    clientSecret: string
-  }
+export interface BaseApiOptions {
   debugCookie?: string
   performRequest: AxiosInstance['request']
   getTokens: (
@@ -46,40 +31,24 @@ export type ApiConstructorArgs = {
     | Promise<AuthorizationTokens | null | undefined>
     | (AuthorizationTokens | null | undefined)
   setTokens: (tokens: AuthorizationTokens) => Promise<void> | void
-  onAuthFailure: AnyFunc
+  onAuthFailure: (e: Error) => void
   getDefaultConfig?: (
     config: RequestConfig,
   ) => DefaultRequestConfig | Promise<DefaultRequestConfig>
 }
 
-export class Api {
-  private clientCredentials: ApiConstructorArgs['clientCredentials']
-  private debugCookie: ApiConstructorArgs['debugCookie']
-  private performRequest: ApiConstructorArgs['performRequest']
-  private getTokens: ApiConstructorArgs['getTokens']
-  private setTokens: ApiConstructorArgs['setTokens']
-  private onAuthFailure: ApiConstructorArgs['onAuthFailure']
-  private getDefaultConfig: ApiConstructorArgs['getDefaultConfig']
+export abstract class BaseApi<Options extends BaseApiOptions> {
+  protected options: Options
   private isRefreshing = false
   private queuedRequests: QueuedRequest[] = []
 
-  constructor({
-    clientCredentials,
-    debugCookie,
-    performRequest,
-    getTokens,
-    setTokens,
-    onAuthFailure,
-    getDefaultConfig,
-  }: ApiConstructorArgs) {
-    this.clientCredentials = clientCredentials
-    this.debugCookie = debugCookie
-    this.performRequest = performRequest
-    this.getTokens = getTokens
-    this.setTokens = setTokens
-    this.onAuthFailure = onAuthFailure
-    this.getDefaultConfig = getDefaultConfig
+  constructor(options: Options) {
+    this.options = options
   }
+
+  public abstract authenticate(...args: any[]): Promise<boolean>
+  protected abstract refreshTokens(): Promise<boolean>
+  protected abstract getAuthUrl(): string
 
   private formatResponse<R>(
     response: AxiosResponse<R>,
@@ -99,8 +68,8 @@ export class Api {
     })
   }
 
-  private async executeRequest<R>(config: RequestConfig) {
-    const tokens = await this.getTokens(config)
+  protected async executeRequest<R>(config: RequestConfig) {
+    const tokens = await this.options.getTokens(config)
 
     if (tokens?.accessToken && !config?.headers?.Authorization) {
       config = R.assocPath(
@@ -110,17 +79,62 @@ export class Api {
       )
     }
 
-    if (this.debugCookie && !config?.headers?.Cookie) {
-      config = R.assocPath(['headers', 'Cookie'], this.debugCookie, config)
+    if (this.options.debugCookie && !config?.headers?.Cookie) {
+      config = R.assocPath(
+        ['headers', 'Cookie'],
+        this.options.debugCookie,
+        config,
+      )
       config.withCredentials = true
     }
 
-    const defaultConfig = (await this.getDefaultConfig?.(config)) ?? {}
+    const defaultConfig = (await this.options.getDefaultConfig?.(config)) ?? {}
 
-    return this.performRequest<R>({
+    return this.options.performRequest<R>({
       ...defaultConfig,
       ...config,
     })
+  }
+
+  protected async executeTokenRequest(data: any, bearerToken?: string) {
+    try {
+      const config: RequestConfig = {
+        method: 'post',
+        url: this.getAuthUrl(),
+        data,
+      }
+
+      if (bearerToken) {
+        config.headers = {
+          Authorization: `Bearer ${bearerToken}`,
+        }
+      }
+
+      const { data: tokens } = await this.executeRequest<AuthorizationTokens>(
+        config,
+      )
+
+      await this.options.setTokens(tokens)
+      return true
+    } catch (e) {
+      this.options.onAuthFailure(e)
+      return false
+    }
+  }
+
+  private async performRefresh() {
+    if (!this.isRefreshing) {
+      this.isRefreshing = true
+      const didRefresh = await this.refreshTokens()
+
+      if (didRefresh) {
+        this.performQueuedRequests()
+      } else {
+        this.cancelQueuedRequests()
+      }
+
+      this.isRefreshing = false
+    }
   }
 
   private performQueuedRequests() {
@@ -142,35 +156,6 @@ export class Api {
     this.queuedRequests = []
   }
 
-  private async refreshTokens() {
-    this.isRefreshing = true
-    const baseConfig = { method: 'post' as const, url: 'oauth/token' }
-    const tokens = await this.getTokens(baseConfig)
-
-    if (tokens?.refreshToken) {
-      try {
-        const { data } = await this.executeRequest<any>({
-          ...baseConfig,
-          data: {
-            refreshToken: tokens?.refreshToken,
-            grantType: 'refresh_token',
-            ...this.clientCredentials,
-          },
-        })
-
-        await this.setTokens(data)
-        this.performQueuedRequests()
-      } catch (e) {
-        this.onAuthFailure()
-        this.cancelQueuedRequests()
-      }
-    } else {
-      this.cancelQueuedRequests()
-    }
-
-    this.isRefreshing = false
-  }
-
   async request<R = any>(config: RequestConfig): Promise<ApiResponse<R>> {
     if (this.isRefreshing) {
       return this.queueRequest<R>(config)
@@ -180,12 +165,12 @@ export class Api {
       const response = await this.executeRequest<R>(config)
       return this.formatResponse<R>(response, false)
     } catch (e) {
-      if (e?.response?.status === 401 && !config.url?.includes('oauth/token')) {
+      if (
+        e?.response?.status === 401 &&
+        !config.url?.includes(this.getAuthUrl())
+      ) {
         const queuedRequest = this.queueRequest<R>(config)
-
-        if (!this.isRefreshing) {
-          await this.refreshTokens()
-        }
+        await this.performRefresh()
 
         return queuedRequest
       }
