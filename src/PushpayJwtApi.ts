@@ -1,10 +1,8 @@
 import { BaseApi, BaseApiOptions } from './BaseApi'
+import { JwtAuthContext } from './types'
 
 interface PushpayJwtOptions extends BaseApiOptions {
-  getJwtAuthContext: () => {
-    authToken: string
-    organizationKey: string
-  }
+  getJwtAuthContext: () => Promise<JwtAuthContext> | JwtAuthContext
 }
 
 export class PushpayJwtApi extends BaseApi<PushpayJwtOptions> {
@@ -16,7 +14,7 @@ export class PushpayJwtApi extends BaseApi<PushpayJwtOptions> {
     const context = await this.options.getJwtAuthContext()
 
     return this.executeTokenRequest(
-      { organizationKey: context.organizationKey },
+      { organizationKey: context.orgKey },
       context.authToken,
     )
   }

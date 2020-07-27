@@ -21,3 +21,8 @@ export enum ApiMethod {
   PUT = 'put',
   DELETE = 'delete',
 }
+
+export interface JwtAuthContext {
+  authToken: string
+  orgKey: string
+}

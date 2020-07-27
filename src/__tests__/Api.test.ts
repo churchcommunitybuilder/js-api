@@ -25,7 +25,7 @@ const defaultData = { data: 'data' }
 const clientCredentials = { clientId: 'clientId', clientSecret: 'clientSecret' }
 const jwtAuthContext = {
   authToken: 'authToken',
-  organizationKey: 'organizationKey',
+  orgKey: 'orgKey',
 }
 
 const getSharedMocks = (tokens = originalTokens) => {
@@ -367,7 +367,7 @@ describe('Api', () => {
           method: 'post',
           url: 'internal/identity',
           data: {
-            organizationKey: jwtAuthContext.organizationKey,
+            organizationKey: jwtAuthContext.orgKey,
           },
           headers: {
             Authorization: `Bearer ${jwtAuthContext.authToken}`,
