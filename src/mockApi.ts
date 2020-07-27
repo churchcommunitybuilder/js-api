@@ -1,4 +1,5 @@
-import { Api, RequestConfig } from './Api'
+import { BasicOAuthApi } from './BasicOAuthApi'
+import { RequestConfig } from './types'
 
 const mockApiResponse = (data = {}, error = false) => ({
   data,
@@ -32,7 +33,7 @@ export const getMockApi = () => {
     return mockApiResponse()
   })
 
-  const api = new Api({
+  const api = new BasicOAuthApi({
     clientCredentials: {
       clientId: 'clientId',
       clientSecret: 'clientSecret',

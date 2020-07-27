@@ -1,6 +1,7 @@
 import { delay } from '../delay'
 
-import { Api } from '../Api'
+import { PushpayJwtApi } from '../PushpayJwtApi'
+import { BasicOAuthApi } from '../BasicOAuthApi'
 
 const url = 'testUrl'
 
@@ -51,7 +52,7 @@ const instantiateBasicOauth = (
 ) => {
   const mocks = getSharedMocks(tokens)
 
-  const api = new Api({
+  const api = new BasicOAuthApi({
     clientCredentials,
     getDefaultConfig,
     ...mocks,
@@ -66,8 +67,7 @@ const instantiateBasicOauth = (
 const instantiatePushpayJwt = () => {
   const mocks = getSharedMocks()
 
-  const api = new Api({
-    authStrategy: 'pushpayJwt',
+  const api = new PushpayJwtApi({
     getJwtAuthContext: () => jwtAuthContext,
     ...mocks,
   })
@@ -78,7 +78,7 @@ const instantiatePushpayJwt = () => {
   }
 }
 
-describe(Api.name, () => {
+describe('Api', () => {
   describe('when there are no pending refresh requests', () => {
     describe('when the request is successful', () => {
       test('should return the formatted response', async () => {
