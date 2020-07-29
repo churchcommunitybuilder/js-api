@@ -8,6 +8,8 @@ import {
   ApiResponse,
 } from './types'
 
+const delay = (duration: number) => new Promise(r => setTimeout(r, duration))
+
 type QueuedRequest = {
   config: RequestConfig
   resolve: (response: any) => void
@@ -32,6 +34,7 @@ export interface BaseApiOptions {
     | (AuthorizationTokens | null | undefined)
   setTokens: (tokens: AuthorizationTokens) => Promise<void> | void
   onAuthFailure: (e: Error) => void
+  hasNetworkConnection?: () => Promise<boolean> | boolean
   getDefaultConfig?: (
     config: RequestConfig,
   ) => DefaultRequestConfig | Promise<DefaultRequestConfig>
@@ -41,6 +44,7 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
   protected options: Options
   private isRefreshing = false
   private queuedRequests: QueuedRequest[] = []
+  private networkPollingInterval = 2000
 
   constructor(options: Options) {
     this.options = options
@@ -156,7 +160,20 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
     this.queuedRequests = []
   }
 
+  private async waitForNetworkConnection() {
+    if (this.options.hasNetworkConnection) {
+      let hasNetworkConnection = await this.options.hasNetworkConnection()
+
+      while (!hasNetworkConnection) {
+        await delay(this.networkPollingInterval)
+        hasNetworkConnection = await this.options.hasNetworkConnection()
+      }
+    }
+  }
+
   async request<R = any>(config: RequestConfig): Promise<ApiResponse<R>> {
+    await this.waitForNetworkConnection()
+
     if (this.isRefreshing) {
       return this.queueRequest<R>(config)
     }
