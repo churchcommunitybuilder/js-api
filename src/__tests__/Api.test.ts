@@ -325,7 +325,7 @@ describe('Api', () => {
         const { api, performRequest, getTokens } = instantiateBasicOauth()
         performRequest.mockResolvedValueOnce({ data: newTokens })
 
-        const isSuccessful = await api.authenticate(params)
+        const isSuccessful = await api.authenticate('password', params)
 
         expect(isSuccessful).toBe(true)
         expect(getTokens()).toBe(newTokens)
@@ -347,7 +347,7 @@ describe('Api', () => {
 
         performRequest.mockRejectedValueOnce(error)
 
-        const isSuccessful = await api.authenticate(params)
+        const isSuccessful = await api.authenticate('password', params)
 
         expect(isSuccessful).toBe(false)
         expect(onAuthFailure).toHaveBeenCalledWith(error)

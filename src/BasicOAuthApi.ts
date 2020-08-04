@@ -8,18 +8,19 @@ interface BasicOAuthOptions extends BaseApiOptions {
   }
 }
 
+type GrantType = 'password' | 'clientCredentials'
+type AuthParams<G extends GrantType> = {
+  subdomain: string
+} & ('password' extends G ? { username: string; password: string } : {})
+
 export class BasicOAuthApi extends BaseApi<BasicOAuthOptions> {
   protected getAuthUrl() {
     return 'oauth/token'
   }
 
-  async authenticate(params: {
-    username: string
-    password: string
-    subdomain: string
-  }) {
+  async authenticate<G extends GrantType>(grantType: G, params: AuthParams<G>) {
     return this.executeTokenRequest({
-      grantType: 'password',
+      grantType,
       ...params,
       ...this.options.clientCredentials,
     })
