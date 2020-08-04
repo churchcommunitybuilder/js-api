@@ -42,7 +42,7 @@ export interface BaseApiOptions {
 
 export abstract class BaseApi<Options extends BaseApiOptions> {
   protected options: Options
-  private isRefreshing = false
+  private isAuthenticating = false
   private queuedRequests: QueuedRequest[] = []
   private networkPollingInterval = 2000
 
@@ -101,6 +101,8 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
   }
 
   protected async executeTokenRequest(data: any, bearerToken?: string) {
+    this.isAuthenticating = true
+
     try {
       const config: RequestConfig = {
         method: 'post',
@@ -123,21 +125,22 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
     } catch (e) {
       this.options.onAuthFailure(e)
       return false
+    } finally {
+      this.isAuthenticating = false
     }
   }
 
   private async performRefresh() {
-    if (!this.isRefreshing) {
-      this.isRefreshing = true
+    if (!this.isAuthenticating) {
+      this.isAuthenticating = true
       const didRefresh = await this.refreshTokens()
+      this.isAuthenticating = false
 
       if (didRefresh) {
         this.performQueuedRequests()
       } else {
         this.cancelQueuedRequests()
       }
-
-      this.isRefreshing = false
     }
   }
 
@@ -174,7 +177,7 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
   async request<R = any>(config: RequestConfig): Promise<ApiResponse<R>> {
     await this.waitForNetworkConnection()
 
-    if (this.isRefreshing) {
+    if (this.isAuthenticating) {
       return this.queueRequest<R>(config)
     }
 
