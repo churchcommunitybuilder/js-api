@@ -8,7 +8,7 @@ interface BasicOAuthOptions extends BaseApiOptions {
   }
 }
 
-type GrantType = 'password' | 'clientCredentials'
+type GrantType = 'password' | 'client_credentials'
 type AuthParams<G extends GrantType> = {
   subdomain: string
 } & ('password' extends G ? { username: string; password: string } : {})
