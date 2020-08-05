@@ -2,7 +2,10 @@ import { AxiosRequestConfig, AxiosResponse } from 'axios'
 
 export interface AuthorizationTokens {
   accessToken: string
-  refreshToken: string
+  refreshToken?: string
+  tokenType?: string
+  expiresIn?: number
+  scope?: string
 }
 
 export type ApiResponse<R> = AxiosResponse<R> & { error: boolean }
