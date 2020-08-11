@@ -121,8 +121,10 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
       )
 
       await this.options.setTokens(tokens)
+      this.performQueuedRequests()
       return true
     } catch (e) {
+      this.cancelQueuedRequests()
       this.options.onAuthFailure(e)
       return false
     } finally {

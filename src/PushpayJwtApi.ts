@@ -13,6 +13,10 @@ export class PushpayJwtApi extends BaseApi<PushpayJwtOptions> {
   async authenticate() {
     const context = await this.options.getJwtAuthContext()
 
+    if (!context.authToken || !context.orgKey) {
+      return false
+    }
+
     return this.executeTokenRequest(
       { organizationKey: context.orgKey },
       context.authToken,

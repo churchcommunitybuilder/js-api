@@ -135,7 +135,7 @@ describe('Api', () => {
 
           const response = await api.get(url)
 
-          expect(performRequest).toHaveBeenCalledTimes(3)
+          expect(performRequest).toHaveBeenCalledTimes(4)
 
           expect(getTokens()).toEqual(newTokens)
           expect(performRequest).toHaveBeenNthCalledWith(2, {
