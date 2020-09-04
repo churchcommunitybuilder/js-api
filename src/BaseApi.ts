@@ -27,6 +27,7 @@ type DefaultRequestConfig = Partial<RequestConfig>
 export interface BaseApiOptions {
   debugCookie?: string
   performRequest: AxiosInstance['request']
+  propagateErrors?: boolean
   getTokens: (
     config: RequestConfig,
   ) =>
@@ -53,6 +54,12 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
   public abstract authenticate(...args: any[]): Promise<boolean>
   protected abstract refreshTokens(): Promise<boolean>
   protected abstract getAuthUrl(): string
+
+  private handleError(e: Error) {
+    if (this.options.propagateErrors) {
+      throw e
+    }
+  }
 
   private formatResponse<R>(
     response: AxiosResponse<R>,
@@ -124,8 +131,10 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
       this.performQueuedRequests()
       return true
     } catch (e) {
+      this.handleError(e)
       this.cancelQueuedRequests()
       this.options.onAuthFailure(e)
+
       return false
     } finally {
       this.isAuthenticating = false
@@ -152,6 +161,7 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
         const response = await this.executeRequest(request.config)
         request.resolve(this.formatResponse(response, false))
       } catch (e) {
+        this.handleError(e)
         request.resolve(this.formatResponse(e, true))
       }
     })
@@ -187,6 +197,8 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
       const response = await this.executeRequest<R>(config)
       return this.formatResponse<R>(response, false)
     } catch (e) {
+      this.handleError(e)
+
       if (
         e?.response?.status === 401 &&
         !config.url?.includes(this.getAuthUrl())
