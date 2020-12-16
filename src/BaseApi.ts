@@ -1,5 +1,6 @@
 import { AxiosInstance, AxiosResponse } from 'axios'
 import R from 'ramda'
+import logLevel from 'loglevel'
 
 import {
   AuthorizationTokens,
@@ -33,6 +34,7 @@ export interface BaseApiOptions {
   ) =>
     | Promise<AuthorizationTokens | null | undefined>
     | (AuthorizationTokens | null | undefined)
+  logLevel?: 'debug' | 'error' | 'silent'
   setTokens: (tokens: AuthorizationTokens) => Promise<void> | void
   onAuthFailure: (e: Error) => void
   hasNetworkConnection?: () => Promise<boolean> | boolean
@@ -49,6 +51,19 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
 
   constructor(options: Options) {
     this.options = options
+
+    switch (options.logLevel) {
+      case 'debug':
+        logLevel.setLevel(logLevel.levels.DEBUG, true)
+        break
+      case 'error':
+        logLevel.setLevel(logLevel.levels.ERROR, true)
+        break
+      case 'silent':
+      default:
+        logLevel.setLevel(logLevel.levels.SILENT, true)
+        break
+    }
   }
 
   public abstract authenticate(...args: any[]): Promise<boolean>
@@ -74,6 +89,7 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
   private async queueRequest<R>(
     config: RequestConfig,
   ): Promise<ApiResponse<R>> {
+    logLevel.debug('Request Queued:', config)
     return new Promise(resolve => {
       this.queuedRequests = R.append({ config, resolve }, this.queuedRequests)
     })
@@ -101,10 +117,34 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
 
     const defaultConfig = (await this.options.getDefaultConfig?.(config)) ?? {}
 
-    return this.options.performRequest<R>({
+    const mergedConfig = {
       ...defaultConfig,
       ...config,
-    })
+    }
+
+    try {
+      const response = await this.options.performRequest<R>(mergedConfig)
+      logLevel.debug('Request Finished:', {
+        request: mergedConfig,
+        response: {
+          status: response.status,
+          data: response.data,
+          headers: response.headers,
+        },
+      })
+
+      return response
+    } catch (e) {
+      logLevel.error('Request Failed:', {
+        request: mergedConfig,
+        response: {
+          status: e.status,
+          data: e.data,
+          headers: e.headers,
+        },
+      })
+      throw e
+    }
   }
 
   protected async executeTokenRequest(data: any, bearerToken?: string) {
