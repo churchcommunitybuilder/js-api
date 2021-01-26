@@ -79,6 +79,36 @@ const instantiatePushpayJwt = () => {
 }
 
 describe('Api', () => {
+  test('should narrow the types for success/error', async () => {
+    const { api, performRequest } = instantiateBasicOauth()
+
+    const successData = { x: 1 }
+    const errorData = { y: 2 }
+    performRequest.mockResolvedValueOnce({ data: successData })
+    const successResponse = await api.get<typeof successData, typeof errorData>(
+      {
+        url: '',
+      },
+    )
+
+    const successExpecation = successResponse.error
+      ? successResponse.data.y
+      : successResponse.data.x
+
+    expect(successExpecation).toBe(successData.x)
+
+    performRequest.mockRejectedValueOnce({ data: { y: 2 } })
+    const errorResponse = await api.get<typeof successData, typeof errorData>({
+      url: '',
+    })
+
+    const errorExpectation = errorResponse.error
+      ? errorResponse.data.y
+      : errorResponse.data.x
+
+    expect(errorExpectation).toBe(errorData.y)
+  })
+
   describe('when there are no pending refresh requests', () => {
     describe('when the request is successful', () => {
       test('should return the formatted response', async () => {
@@ -325,9 +355,10 @@ describe('Api', () => {
         const { api, performRequest, getTokens } = instantiateBasicOauth()
         performRequest.mockResolvedValueOnce({ data: newTokens })
 
-        const isSuccessful = await api.authenticate('password', params)
+        const { error, data } = await api.authenticate('password', params)
 
-        expect(isSuccessful).toBe(true)
+        expect(error).toBe(false)
+        expect(data).toBe(newTokens)
         expect(getTokens()).toBe(newTokens)
         expect(performRequest).toHaveBeenCalledWith({
           ...defaultHeaders,
@@ -343,14 +374,15 @@ describe('Api', () => {
 
       test('should call onAuthFailure when the request fails', async () => {
         const { api, performRequest, onAuthFailure } = instantiateBasicOauth()
-        const error = { message: 'failure' }
+        const errorResponse = { data: { message: 'failure' } }
 
-        performRequest.mockRejectedValueOnce(error)
+        performRequest.mockRejectedValueOnce(errorResponse)
 
-        const isSuccessful = await api.authenticate('password', params)
+        const { error, data } = await api.authenticate('password', params)
 
-        expect(isSuccessful).toBe(false)
-        expect(onAuthFailure).toHaveBeenCalledWith(error)
+        expect(error).toBe(true)
+        expect(data).toBe(errorResponse.data)
+        expect(onAuthFailure).toHaveBeenCalledWith(errorResponse)
       })
     })
 
@@ -359,9 +391,17 @@ describe('Api', () => {
         const { api, performRequest, getTokens } = instantiatePushpayJwt()
         performRequest.mockResolvedValueOnce({ data: newTokens })
 
-        const isSuccessful = await api.authenticate()
+        const response = await api.authenticate()
 
-        expect(isSuccessful).toBe(true)
+        // ensure that types are correct for error statuses
+        if (response.error) {
+          response.data.errors[0]
+        } else {
+          response.data.accessToken
+        }
+
+        expect(response.error).toBe(false)
+        expect(response.data).toBe(newTokens)
         expect(getTokens()).toBe(newTokens)
         expect(performRequest).toHaveBeenCalledWith({
           method: 'post',
@@ -373,6 +413,21 @@ describe('Api', () => {
             Authorization: `Bearer ${jwtAuthContext.authToken}`,
           },
         })
+      })
+
+      test('should be return errors', async () => {
+        const { api, performRequest } = instantiatePushpayJwt()
+        const errors = {
+          errors: [{ type: 'ERROR', message: 'message ' }],
+        }
+        performRequest.mockRejectedValueOnce({
+          data: errors,
+        })
+
+        const response = await api.authenticate()
+
+        expect(response.error).toBe(true)
+        expect(response.data).toBe(errors)
       })
     })
   })

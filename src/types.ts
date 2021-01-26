@@ -8,7 +8,18 @@ export interface AuthorizationTokens {
   scope?: string
 }
 
-export type ApiResponse<R> = AxiosResponse<R> & { error: boolean }
+export type ApiResponse<WhenSuccess, WhenError = unknown> =
+  | ({ error: false } & AxiosResponse<WhenSuccess>)
+  | ({ error: true } & AxiosResponse<WhenError>)
+
+export interface AuthErrorResponse {
+  errors: {
+    type: string
+    message: string
+  }[]
+}
+
+export type AuthTokenResponse<E = unknown> = ApiResponse<AuthorizationTokens, E>
 
 export interface RequestConfig extends AxiosRequestConfig {
   url: string

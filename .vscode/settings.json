@@ -1,15 +1,7 @@
 {
-    "typescript.preferences.renameShorthandProperties": false,
     "typescript.tsdk": "node_modules/typescript/lib",
     "editor.codeActionsOnSave": {
-      "source.fixAll.tslint": true
-    },
-    "[typescript]": {
-      "editor.formatOnSave": true,
-      "editor.tabSize": 2,
-    },
-    "search.exclude": {
-      "**/node_modules": true,
+      "source.fixAll.eslint": true
     },
     "git.ignoreLimitWarning": true,
   }

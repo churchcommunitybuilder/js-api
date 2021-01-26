@@ -7,6 +7,7 @@ import {
   RequestConfig,
   ApiMethod,
   ApiResponse,
+  AuthTokenResponse,
 } from './types'
 
 const delay = (duration: number) => new Promise(r => setTimeout(r, duration))
@@ -17,10 +18,11 @@ type QueuedRequest = {
 }
 
 interface WrappedRequest {
-  <R = any>(config: RequestConfig): Promise<ApiResponse<R>>
-  <R = any>(url: string, config?: Omit<RequestConfig, 'url'>): Promise<
-    ApiResponse<R>
-  >
+  <R = any, E = unknown>(config: RequestConfig): Promise<ApiResponse<R, E>>
+  <R = any, E = unknown>(
+    url: string,
+    config?: Omit<RequestConfig, 'url'>,
+  ): Promise<ApiResponse<R, E>>
 }
 
 type DefaultRequestConfig = Partial<RequestConfig>
@@ -66,8 +68,8 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
     }
   }
 
-  public abstract authenticate(...args: any[]): Promise<boolean>
-  protected abstract refreshTokens(): Promise<boolean>
+  public abstract authenticate(...args: any[]): Promise<AuthTokenResponse>
+  protected abstract refreshTokens(): Promise<AuthTokenResponse>
   protected abstract getAuthUrl(): string
 
   private handleError(e: Error) {
@@ -76,14 +78,14 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
     }
   }
 
-  private formatResponse<R>(
+  protected formatResponse<R, E extends boolean>(
     response: AxiosResponse<R>,
-    error: boolean,
-  ): ApiResponse<R> {
+    error: E,
+  ): ApiResponse<E extends true ? never : R, E extends true ? R : never> {
     return {
       ...response,
       error,
-    }
+    } as any
   }
 
   private async queueRequest<R>(
@@ -147,7 +149,10 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
     }
   }
 
-  protected async executeTokenRequest(data: any, bearerToken?: string) {
+  protected async executeTokenRequest<E>(
+    data: any,
+    bearerToken?: string,
+  ): Promise<AuthTokenResponse<E>> {
     this.isAuthenticating = true
 
     try {
@@ -163,19 +168,18 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
         }
       }
 
-      const { data: tokens } = await this.executeRequest<AuthorizationTokens>(
-        config,
-      )
+      const response = await this.executeRequest<AuthorizationTokens>(config)
 
-      await this.options.setTokens(tokens)
+      await this.options.setTokens(response.data)
       this.performQueuedRequests()
-      return true
+
+      return this.formatResponse(response, false)
     } catch (e) {
       this.handleError(e)
       this.cancelQueuedRequests()
       this.options.onAuthFailure(e)
 
-      return false
+      return this.formatResponse<E, true>(e, true)
     } finally {
       this.isAuthenticating = false
     }
@@ -226,7 +230,9 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
     }
   }
 
-  async request<R = any>(config: RequestConfig): Promise<ApiResponse<R>> {
+  async request<R = any, E = unknown>(
+    config: RequestConfig,
+  ): Promise<ApiResponse<R>> {
     await this.waitForNetworkConnection()
 
     if (this.isAuthenticating) {
@@ -235,7 +241,7 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
 
     try {
       const response = await this.executeRequest<R>(config)
-      return this.formatResponse<R>(response, false)
+      return this.formatResponse(response, false)
     } catch (e) {
       this.handleError(e)
 
@@ -249,12 +255,12 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
         return queuedRequest
       }
 
-      return this.formatResponse(e, true)
+      return this.formatResponse<E, true>(e, true)
     }
   }
 
   private applyDefaultMethod(method: ApiMethod) {
-    const wrappedRequest: WrappedRequest = <R = any>(
+    const wrappedRequest: WrappedRequest = <R = any, E = unknown>(
       urlOrConfig: string | RequestConfig,
       config: Omit<RequestConfig, 'url'> = {},
     ) => {
@@ -263,7 +269,7 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
           ? { url: urlOrConfig, ...config }
           : urlOrConfig
 
-      return this.request<R>({
+      return this.request<R, E>({
         method,
         ...mergedConfig,
       })
