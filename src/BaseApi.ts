@@ -88,9 +88,9 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
     } as any
   }
 
-  private async queueRequest<R>(
+  private async queueRequest<R, E>(
     config: RequestConfig,
-  ): Promise<ApiResponse<R>> {
+  ): Promise<ApiResponse<R, E>> {
     logLevel.debug('Request Queued:', config)
     return new Promise(resolve => {
       this.queuedRequests = R.append({ config, resolve }, this.queuedRequests)
@@ -232,11 +232,11 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
 
   async request<R = any, E = unknown>(
     config: RequestConfig,
-  ): Promise<ApiResponse<R>> {
+  ): Promise<ApiResponse<R, E>> {
     await this.waitForNetworkConnection()
 
     if (this.isAuthenticating) {
-      return this.queueRequest<R>(config)
+      return this.queueRequest<R, E>(config)
     }
 
     try {
@@ -249,7 +249,7 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
         e?.response?.status === 401 &&
         !config.url?.includes(this.getAuthUrl())
       ) {
-        const queuedRequest = this.queueRequest<R>(config)
+        const queuedRequest = this.queueRequest<R, E>(config)
         await this.performRefresh()
 
         return queuedRequest
