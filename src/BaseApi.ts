@@ -84,6 +84,7 @@ export abstract class BaseApi<Options extends BaseApiOptions> {
   ): ApiResponse<E extends true ? never : R, E extends true ? R : never> {
     return {
       ...response,
+      data: (response as any)?.response?.data ?? response.data,
       error,
     } as any
   }
